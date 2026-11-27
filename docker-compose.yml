@@ -1,0 +1,87 @@
+# Opt-in only. startall.sh and the main compose files do not start this.
+# From the repo root:
+#   docker compose -f workers/scene-worker/docker-compose.yml up --build
+services:
+  scene-worker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        APT_MAX_FUTURE_TIME: ${APT_MAX_FUTURE_TIME:-10}
+    image: scene-worker:local
+    init: true
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:${SCENE_WORKER_PORT:-8090}:8090"
+    env_file:
+      - path: scene-worker.env
+        required: false
+    environment:
+      SCENE_WORKER_PORT: 8090
+    volumes:
+      - ./outputs:/app/outputs
+      # Edit scene_config.py on the host and restart; no image rebuild needed.
+      - ./scene_config.py:/app/scene_config.py:ro
+
+  # Optional local RTSP server for replaying a file. Not used when the VR
+  # camera already publishes RTSP. Start with: --profile replay
+  mediamtx:
+    image: bluenviron/mediamtx:1.11.3
+    profiles: ["replay"]
+    ports:
+      - "127.0.0.1:8554:8554"
+
+  livekit-test:
+    image: livekit/livekit-server:v1.9.9
+    profiles: ["test", "project-test"]
+    command: ["--dev", "--bind", "0.0.0.0", "--udp-port", "7882"]
+
+  test-publisher:
+    image: scene-worker:local
+    profiles: ["test"]
+    command: ["python", "test_livekit_transport.py", "--url", "ws://livekit-test:7880", "--manager", "http://scene-worker:8090"]
+    env_file:
+      - path: scene-worker.env
+        required: false
+    environment:
+      # Disposable development server only; never use these keys in production.
+      LIVEKIT_API_KEY: devkey
+      LIVEKIT_API_SECRET: secret
+    depends_on:
+      scene-worker:
+        condition: service_healthy
+      livekit-test:
+        condition: service_started
+
+  project-test:
+    image: scene-worker:local
+    profiles: ["project-test"]
+    command:
+      - python
+      - test_livekit_transport.py
+      - --url
+      - ws://livekit-test:7880
+      - --manager
+      - http://scene-worker:8090
+      - --video
+      - /test-video
+      - --inference
+      - --project-tasks
+    env_file:
+      - path: scene-worker.env
+        required: false
+    environment:
+      LIVEKIT_API_KEY: devkey
+      LIVEKIT_API_SECRET: secret
+    volumes:
+      - type: bind
+        source: ${SCENE_TEST_VIDEO:-/dev/null}
+        target: /test-video
+        read_only: true
+        bind:
+          create_host_path: false
+    depends_on:
+      scene-worker:
+        condition: service_healthy
+      livekit-test:
+        condition: service_started

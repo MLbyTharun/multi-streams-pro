@@ -1,0 +1,6 @@
+.venv/
+hf-cache/
+outputs/
+__pycache__/
+*.pyc
+scene-worker.env

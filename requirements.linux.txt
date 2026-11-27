@@ -1,0 +1,8 @@
+# Inference runs remotely through the vision API configured in scene_config.py.
+Pillow>=10
+opencv-python-headless>=4.9
+XlsxWriter>=3.1
+psutil>=5.9
+numpy>=1.26
+livekit==1.0.12
+livekit-api==1.0.5

@@ -1,0 +1,7 @@
+.venv
+hf-cache
+outputs
+__pycache__
+*.pyc
+.DS_Store
+scene-worker.env
